@@ -44,36 +44,40 @@ func runBootRepair(owner walk.Form) {
 		_ = list.SetCurrentIndex(0)
 	}
 	err := Dialog{
-		AssignTo: &dlg,
-		Title:    t("Boot reparieren", "Repair boot"),
-		MinSize:  Size{Width: 760, Height: 460},
-		Layout:   VBox{},
-		Children: []Widget{
-			Label{AssignTo: &info},
-			ListBox{AssignTo: &list, MinSize: Size{Height: 140}},
-			Composite{Layout: HBox{MarginsZero: true}, Children: []Widget{
-				PushButton{Text: t("Neu suchen", "Search again"), OnClicked: refresh},
-				PushButton{Text: t("BitLocker-Laufwerk entsperren…", "Unlock a BitLocker drive…"), OnClicked: func() {
-					if unlockBitLocker(dlg) {
-						refresh()
-					}
-				}},
-				HSpacer{},
-			}},
-			GroupBox{Title: t("Reparatur", "Repair"), Layout: VBox{}, Children: []Widget{
-				Composite{Layout: HBox{MarginsZero: true}, Children: []Widget{
+		AssignTo:   &dlg,
+		Title:      t("Boot reparieren", "Repair boot"),
+		MinSize:    Size{Width: 820, Height: 640},
+		Background: solid(colBg),
+		Font:       baseFont,
+		Layout:     VBox{MarginsZero: true, SpacingZero: true},
+		Children: dialogFrame(t("Boot reparieren", "Repair boot"), bootText(),
+			[]Widget{
+				Label{AssignTo: &info, TextColor: colMuted},
+				section(t("Windows-Installation", "Windows installation")),
+				ListBox{AssignTo: &list, MinSize: Size{Height: 120}},
+				row(
+					FlatButton{Text: t("Neu suchen", "Search again"), OnClicked: refresh},
+					FlatButton{Text: t("BitLocker-Laufwerk entsperren…", "Unlock a BitLocker drive…"), OnClicked: func() {
+						if unlockBitLocker(dlg) {
+							refresh()
+						}
+					}},
+				),
+				VSpacer{Size: 4},
+				section(t("Reparatur", "Repair")),
+				row(
 					Label{Text: t("Bootdateien für:", "Boot files for:")},
 					ComboBox{AssignTo: &files, Model: []string{t("diesen Rechner (automatisch)", "this computer (automatic)"), "UEFI", "BIOS", t("beides", "both")}, CurrentIndex: 0},
-					HSpacer{},
-				}},
-				CheckBox{AssignTo: &drivers, Text: t("Disk-Controller-Treiber beim Start laden (nach Wechsel des Controllers)", "Load disk controller drivers at start (after changing the controller)"), Checked: true},
-				CheckBox{AssignTo: &active, Text: t("Systempartition aktiv setzen (nur MBR)", "Mark the system partition active (MBR only)"), Checked: true},
-				CheckBox{AssignTo: &mbr, Text: t("Windows-Bootcode in den MBR schreiben (nur MBR)", "Write the Windows boot code to the MBR (MBR only)")},
-			}},
-			Label{Text: t("Vorher werden der Anfang der Disk und der BCD gesichert (Ordner \\backupzit auf dem Stick oder der Backup-Disk, nie auf der reparierten Disk).", "The start of the disk and the BCD are backed up first (folder \\backupzit on the stick or the backup disk, never on the disk being repaired).")},
-			Composite{Layout: HBox{MarginsZero: true}, Children: []Widget{
+				),
+				CheckBox{Alignment: AlignHNearVCenter, AssignTo: &drivers, Text: t("Disk-Controller-Treiber beim Start laden (nach Wechsel des Controllers)", "Load disk controller drivers at start (after changing the controller)"), Checked: true},
+				CheckBox{Alignment: AlignHNearVCenter, AssignTo: &active, Text: t("Systempartition aktiv setzen (nur MBR)", "Mark the system partition active (MBR only)"), Checked: true},
+				CheckBox{Alignment: AlignHNearVCenter, AssignTo: &mbr, Text: t("Windows-Bootcode in den MBR schreiben (nur MBR)", "Write the Windows boot code to the MBR (MBR only)")},
+				muted(t("Vorher werden der Anfang der Disk und der BCD gesichert (Ordner \\backupzit auf dem Stick oder der Backup-Disk, nie auf der reparierten Disk).", "The start of the disk and the BCD are backed up first (folder \\backupzit on the stick or the backup disk, never on the disk being repaired).")),
+			},
+			[]Widget{
 				HSpacer{},
-				PushButton{Text: t("Reparieren", "Repair"), OnClicked: func() {
+				FlatButton{Text: t("Schließen", "Close"), OnClicked: func() { dlg.Cancel() }},
+				FlatButton{Text: t("Reparieren", "Repair"), Kind: btnPrimary, OnClicked: func() {
 					i := list.CurrentIndex()
 					if i < 0 || i >= len(installs) {
 						errorBox(dlg, errors.New(t("Bitte eine Windows-Installation wählen.", "Choose a Windows installation.")))
@@ -104,9 +108,7 @@ func runBootRepair(owner walk.Form) {
 					}
 					walk.MsgBox(dlg, "BackupZit", msg, walk.MsgBoxIconInformation)
 				}},
-				PushButton{Text: t("Schließen", "Close"), OnClicked: func() { dlg.Cancel() }},
-			}},
-		},
+			}),
 	}.Create(owner)
 	if err != nil {
 		errorBox(owner, err)
@@ -203,17 +205,21 @@ func runDrivers(owner walk.Form) {
 		_ = list.SetModel(labels)
 	}
 	err := Dialog{
-		AssignTo: &dlg,
-		Title:    t("Treiber", "Drivers"),
-		MinSize:  Size{Width: 760, Height: 420},
-		Layout:   VBox{},
-		Children: []Widget{
-			Label{Text: t("Geräte ohne Treiber:", "Devices without a driver:")},
-			ListBox{AssignTo: &list},
-			Label{Text: t("Fehlt die Systemdisk (z. B. NVMe hinter Intel RST/VMD), den Speichertreiber des Herstellers von einem USB-Stick laden.",
-				"If the system disk is missing (e.g. NVMe behind Intel RST/VMD), load the vendor's storage driver from a USB stick.")},
-			Composite{Layout: HBox{MarginsZero: true}, Children: []Widget{
-				PushButton{Text: t("Treiber jetzt laden (Ordner)…", "Load drivers now (folder)…"), OnClicked: func() {
+		AssignTo:   &dlg,
+		Title:      t("Treiber", "Drivers"),
+		MinSize:    Size{Width: 820, Height: 520},
+		Background: solid(colBg),
+		Font:       baseFont,
+		Layout:     VBox{MarginsZero: true, SpacingZero: true},
+		Children: dialogFrame(t("Treiber", "Drivers"), driversText(),
+			[]Widget{
+				section(t("Geräte ohne Treiber", "Devices without a driver")),
+				ListBox{AssignTo: &list},
+				muted(t("Fehlt die Systemdisk (z. B. NVMe hinter Intel RST/VMD), den Speichertreiber des Herstellers von einem USB-Stick laden.",
+					"If the system disk is missing (e.g. NVMe behind Intel RST/VMD), load the vendor's storage driver from a USB stick.")),
+			},
+			[]Widget{
+				FlatButton{Text: t("Treiber jetzt laden (Ordner)…", "Load drivers now (folder)…"), Kind: btnPrimary, OnClicked: func() {
 					dir := browseFolder(dlg, t("Ordner mit Treibern (.inf)", "Folder with drivers (.inf)"))
 					if dir == "" {
 						return
@@ -235,12 +241,11 @@ func runDrivers(owner walk.Form) {
 					walk.MsgBox(dlg, "BackupZit", msg, walk.MsgBoxIconInformation)
 					refresh()
 				}},
-				PushButton{Text: t("Treiber in ein Windows einspielen…", "Add drivers to a Windows…"), OnClicked: func() { addDriversToWindows(dlg) }},
-				PushButton{Text: t("Neu prüfen", "Check again"), OnClicked: refresh},
+				FlatButton{Text: t("Treiber in ein Windows einspielen…", "Add drivers to a Windows…"), OnClicked: func() { addDriversToWindows(dlg) }},
+				FlatButton{Text: t("Neu prüfen", "Check again"), OnClicked: refresh},
 				HSpacer{},
-				PushButton{Text: t("Schließen", "Close"), OnClicked: func() { dlg.Cancel() }},
-			}},
-		},
+				FlatButton{Text: t("Schließen", "Close"), OnClicked: func() { dlg.Cancel() }},
+			}),
 	}.Create(owner)
 	if err != nil {
 		errorBox(owner, err)
@@ -322,69 +327,75 @@ func networkDialog(owner walk.Form, names []string) error {
 		state.SetText(strings.ReplaceAll(text, "\n", "\r\n"))
 	}
 	err := Dialog{
-		AssignTo: &dlg,
-		Title:    t("Netzwerk", "Network"),
-		MinSize:  Size{Width: 700, Height: 520},
-		Layout:   VBox{},
-		Children: []Widget{
-			Label{Text: hint, Visible: hint != "", TextColor: walk.RGB(0xB0, 0x30, 0x20)},
-			Composite{Layout: Grid{Columns: 2}, Children: []Widget{
-				Label{Text: t("Netzwerkkarte:", "Network adapter:")},
-				ComboBox{AssignTo: &adapter, Model: names, CurrentIndex: first},
-				Label{Text: t("Adresse:", "Address:")},
-				ComboBox{AssignTo: &mode, Model: []string{t("automatisch (DHCP)", "automatic (DHCP)"), t("fest", "static")}, CurrentIndex: 0},
-				Label{Text: "IP:"},
-				LineEdit{AssignTo: &ip, CueBanner: "192.168.1.50"},
-				Label{Text: t("Subnetzmaske:", "Subnet mask:")},
-				LineEdit{AssignTo: &mask, Text: "255.255.255.0"},
-				Label{Text: "Gateway:"},
-				LineEdit{AssignTo: &gw, CueBanner: "192.168.1.1"},
-				Label{Text: "DNS:"},
-				LineEdit{AssignTo: &dns, CueBanner: "192.168.1.1"},
-			}},
-			Composite{Layout: HBox{MarginsZero: true}, Children: []Widget{
-				PushButton{Text: t("Übernehmen", "Apply"), OnClicked: func() {
-					name := adapter.Text()
-					if name == "" {
-						errorBox(dlg, noAdapter)
-						return
-					}
-					var cmds [][]string
-					if mode.CurrentIndex() == 0 {
-						cmds = [][]string{
-							{"interface", "ipv4", "set", "address", "name=" + name, "source=dhcp"},
-							{"interface", "ipv4", "set", "dnsservers", "name=" + name, "source=dhcp"},
-						}
-					} else {
-						a := []string{"interface", "ipv4", "set", "address", "name=" + name, "static", ip.Text(), mask.Text()}
-						if g := strings.TrimSpace(gw.Text()); g != "" {
-							a = append(a, g)
-						}
-						cmds = [][]string{a}
-						if d := strings.TrimSpace(dns.Text()); d != "" {
-							cmds = append(cmds, []string{"interface", "ipv4", "set", "dnsservers", "name=" + name, "static", d, "primary"})
-						}
-					}
-					for _, c := range cmds {
-						if out, err := exec.Command("netsh.exe", c...).CombinedOutput(); err != nil { // #nosec G204 -- arguments are separate values, no shell
-							errorBox(dlg, fmt.Errorf("netsh: %v: %s", err, strings.TrimSpace(string(out))))
+		AssignTo:   &dlg,
+		Title:      t("Netzwerk", "Network"),
+		MinSize:    Size{Width: 760, Height: 780},
+		Background: solid(colBg),
+		Font:       baseFont,
+		Layout:     VBox{MarginsZero: true, SpacingZero: true},
+		Children: dialogFrame(t("Netzwerk", "Network"), t("Adresse der Netzwerkkarte einstellen", "Set the address of the network adapter"),
+			[]Widget{
+				Label{Text: hint, Visible: hint != "", TextColor: colDanger},
+				Composite{Layout: Grid{Columns: 2, MarginsZero: true, Spacing: 8}, Children: []Widget{
+					Label{Text: t("Netzwerkkarte:", "Network adapter:")},
+					ComboBox{AssignTo: &adapter, Model: names, CurrentIndex: first},
+					Label{Text: t("Adresse:", "Address:")},
+					ComboBox{AssignTo: &mode, Model: []string{t("automatisch (DHCP)", "automatic (DHCP)"), t("fest", "static")}, CurrentIndex: 0},
+					Label{Text: "IP:"},
+					LineEdit{AssignTo: &ip, CueBanner: "192.168.1.50"},
+					Label{Text: t("Subnetzmaske:", "Subnet mask:")},
+					LineEdit{AssignTo: &mask, Text: "255.255.255.0"},
+					Label{Text: "Gateway:"},
+					LineEdit{AssignTo: &gw, CueBanner: "192.168.1.1"},
+					Label{Text: "DNS:"},
+					LineEdit{AssignTo: &dns, CueBanner: "192.168.1.1"},
+				}},
+				row(
+					FlatButton{Text: t("Übernehmen", "Apply"), Kind: btnPrimary, OnClicked: func() {
+						name := adapter.Text()
+						if name == "" {
+							errorBox(dlg, noAdapter)
 							return
 						}
-					}
-					showState()
-				}},
-				PushButton{Text: t("Netzwerk neu starten", "Restart the network"), OnClicked: func() {
-					_ = busy(dlg, t("Netzwerk wird gestartet…", "Starting the network…"), func(context.Context) error {
-						_ = exec.Command("wpeutil.exe", "InitializeNetwork").Run() // #nosec G204 -- fixed command
-						return nil
-					})
-					showState()
-				}},
+						var cmds [][]string
+						if mode.CurrentIndex() == 0 {
+							cmds = [][]string{
+								{"interface", "ipv4", "set", "address", "name=" + name, "source=dhcp"},
+								{"interface", "ipv4", "set", "dnsservers", "name=" + name, "source=dhcp"},
+							}
+						} else {
+							a := []string{"interface", "ipv4", "set", "address", "name=" + name, "static", ip.Text(), mask.Text()}
+							if g := strings.TrimSpace(gw.Text()); g != "" {
+								a = append(a, g)
+							}
+							cmds = [][]string{a}
+							if d := strings.TrimSpace(dns.Text()); d != "" {
+								cmds = append(cmds, []string{"interface", "ipv4", "set", "dnsservers", "name=" + name, "static", d, "primary"})
+							}
+						}
+						for _, c := range cmds {
+							if out, err := exec.Command("netsh.exe", c...).CombinedOutput(); err != nil { // #nosec G204 -- arguments are separate values, no shell
+								errorBox(dlg, fmt.Errorf("netsh: %v: %s", err, strings.TrimSpace(string(out))))
+								return
+							}
+						}
+						showState()
+					}},
+					FlatButton{Text: t("Netzwerk neu starten", "Restart the network"), OnClicked: func() {
+						_ = busy(dlg, t("Netzwerk wird gestartet…", "Starting the network…"), func(context.Context) error {
+							_ = exec.Command("wpeutil.exe", "InitializeNetwork").Run() // #nosec G204 -- fixed command
+							return nil
+						})
+						showState()
+					}},
+				),
+				section(t("Aktueller Stand (ipconfig)", "Current state (ipconfig)")),
+				TextEdit{AssignTo: &state, ReadOnly: true, VScroll: true, Font: Font{Family: "Consolas", PointSize: 9}},
+			},
+			[]Widget{
 				HSpacer{},
-				PushButton{Text: t("Schließen", "Close"), OnClicked: func() { dlg.Cancel() }},
-			}},
-			TextEdit{AssignTo: &state, ReadOnly: true, VScroll: true, Font: Font{Family: "Consolas", PointSize: 9}},
-		},
+				FlatButton{Text: t("Schließen", "Close"), OnClicked: func() { dlg.Cancel() }},
+			}),
 	}.Create(owner)
 	if err != nil {
 		return err

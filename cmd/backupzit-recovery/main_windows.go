@@ -43,62 +43,76 @@ func systemLang() string {
 // app is the main window.
 type app struct {
 	mw     *walk.MainWindow
-	status *walk.Label
+	status *statusChips
+}
+
+// The four actions of the main window; the dialogs show the same text under
+// their title.
+func restoreText() string {
+	return t("Ganze Disk oder einzelne Partitionen aus einem Backup zurückschreiben", "Write a whole disk or single partitions back from a backup")
+}
+
+func bootText() string {
+	return t("Ein vorhandenes Windows wieder startfähig machen", "Make an existing Windows start again")
+}
+
+func driversText() string {
+	return t("Treiber laden, wenn Disks oder Netzwerk fehlen", "Load drivers when disks or network are missing")
+}
+
+// newApp creates the main window.
+func newApp() (*app, error) {
+	a := &app{}
+	err := MainWindow{
+		AssignTo:   &a.mw,
+		Title:      "BackupZit Recovery " + version,
+		MinSize:    Size{Width: 820, Height: 560},
+		Size:       Size{Width: 1024, Height: 700},
+		Background: solid(colBg),
+		Font:       baseFont,
+		Layout:     VBox{MarginsZero: true, SpacingZero: true},
+		Children: []Widget{
+			header("BackupZit Recovery", t("Wählen Sie, was Sie tun möchten.", "Choose what you want to do."), nil, nil),
+			Composite{
+				StretchFactor: stretchFill,
+				Layout:        VBox{Margins: Margins{Left: 24, Top: 24, Right: 24, Bottom: 16}, Spacing: 16},
+				Children: []Widget{
+					Composite{
+						Layout: Grid{Columns: 2, Spacing: 16, MarginsZero: true},
+						Children: []Widget{
+							Tile{Title: t("Image wiederherstellen", "Restore an image"), Text: restoreText(), Icon: iconDisk,
+								OnClicked: func() { runRestoreWizard(a.mw) }},
+							Tile{Title: t("Boot reparieren", "Repair boot"), Text: bootText(), Icon: iconPower,
+								OnClicked: func() { runBootRepair(a.mw) }},
+							Tile{Title: t("Treiber", "Drivers"), Text: driversText(), Icon: iconChip,
+								OnClicked: func() { runDrivers(a.mw) }},
+							Tile{Title: t("Mit Konsole verbinden", "Connect to the console"), Text: t("Wiederherstellung aus der BackupZit-Konsole steuern", "Run the restore from the BackupZit console"), Icon: iconScreen,
+								OnClicked: func() { startConsoleMode(a.mw) }},
+						},
+					},
+					VSpacer{},
+					StatusChips{AssignTo: &a.status},
+				},
+			},
+			footer(
+				FlatButton{Text: t("Netzwerk…", "Network…"), OnClicked: func() { runNetwork(a.mw); a.refreshStatus() }},
+				FlatButton{Text: t("Eingabeaufforderung", "Command prompt"), OnClicked: func() { startDetached("cmd.exe", "/k", "cd /d %SystemDrive%\\") }},
+				FlatButton{Text: "Notepad", OnClicked: func() { startDetached("notepad.exe") }},
+				HSpacer{},
+				FlatButton{Text: t("Neu starten", "Restart"), OnClicked: func() { powerOff(a.mw, true) }},
+				FlatButton{Text: t("Herunterfahren", "Shut down"), OnClicked: func() { powerOff(a.mw, false) }},
+			),
+		},
+	}.Create()
+	if err != nil {
+		return nil, err
+	}
+	a.refreshStatus()
+	return a, nil
 }
 
 func main() {
-	a := &app{}
-	tile := func(title, text string, onClick func()) Widget {
-		return Composite{
-			Layout: VBox{MarginsZero: true, Spacing: 4},
-			Children: []Widget{
-				PushButton{Text: title, Font: Font{PointSize: 12, Bold: true}, MinSize: Size{Width: 260, Height: 56}, OnClicked: onClick},
-				Label{Text: text},
-			},
-		}
-	}
-	err := MainWindow{
-		AssignTo: &a.mw,
-		Title:    "BackupZit Recovery " + version,
-		MinSize:  Size{Width: 820, Height: 560},
-		Size:     Size{Width: 1024, Height: 700},
-		Layout:   VBox{Margins: Margins{Left: 16, Top: 16, Right: 16, Bottom: 8}},
-		Children: []Widget{
-			Label{Text: "BackupZit Recovery", Font: Font{PointSize: 18, Bold: true}},
-			Label{Text: t("Wählen Sie, was Sie tun möchten.", "Choose what you want to do.")},
-			VSpacer{Size: 8},
-			Composite{
-				Layout: Grid{Columns: 2, Spacing: 12},
-				Children: []Widget{
-					tile(t("Image wiederherstellen", "Restore an image"),
-						t("Ganze Disk oder einzelne Partitionen aus einem Backup zurückschreiben", "Write a whole disk or single partitions back from a backup"),
-						func() { runRestoreWizard(a.mw) }),
-					tile(t("Boot reparieren", "Repair boot"),
-						t("Ein vorhandenes Windows wieder startfähig machen", "Make an existing Windows start again"),
-						func() { runBootRepair(a.mw) }),
-					tile(t("Treiber", "Drivers"),
-						t("Treiber laden, wenn Disks oder Netzwerk fehlen", "Load drivers when disks or network are missing"),
-						func() { runDrivers(a.mw) }),
-					tile(t("Mit Konsole verbinden", "Connect to the console"),
-						t("Wiederherstellung aus der BackupZit-Konsole steuern", "Run the restore from the BackupZit console"),
-						func() { startConsoleMode(a.mw) }),
-				},
-			},
-			VSpacer{},
-			Composite{
-				Layout: HBox{MarginsZero: true},
-				Children: []Widget{
-					PushButton{Text: t("Netzwerk…", "Network…"), OnClicked: func() { runNetwork(a.mw); a.refreshStatus() }},
-					PushButton{Text: t("Eingabeaufforderung", "Command prompt"), OnClicked: func() { startDetached("cmd.exe", "/k", "cd /d %SystemDrive%\\") }},
-					PushButton{Text: "Notepad", OnClicked: func() { startDetached("notepad.exe") }},
-					HSpacer{},
-					PushButton{Text: t("Neu starten", "Restart"), OnClicked: func() { powerOff(a.mw, true) }},
-					PushButton{Text: t("Herunterfahren", "Shut down"), OnClicked: func() { powerOff(a.mw, false) }},
-				},
-			},
-			Label{AssignTo: &a.status},
-		},
-	}.Create()
+	a, err := newApp()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "create window:", err)
 		os.Exit(1)
@@ -106,7 +120,6 @@ func main() {
 	if inWinPE() {
 		win.ShowWindow(a.mw.Handle(), win.SW_MAXIMIZE)
 	}
-	a.refreshStatus()
 	// --open=restore|boot|drivers|network opens a window right away (also
 	// for startnet.cmd and for screenshots in tests).
 	for _, arg := range os.Args[1:] {
@@ -130,25 +143,29 @@ func main() {
 }
 
 // refreshStatus shows firmware, network, disks and keyboard.
-func (a *app) refreshStatus() {
+func (a *app) refreshStatus() { a.status.Set(statusChipsNow()) }
+
+func statusChipsNow() []chip {
 	fw := imaging.DetectFirmware()
 	fwText := fw.String()
 	if lang == "de" {
 		fwText = strings.NewReplacer("Secure Boot on", "Secure Boot an", "unknown", "unbekannt").Replace(fwText)
 	}
-	parts := []string{"Firmware: " + fwText}
+	chips := []chip{{"Firmware: " + fwText, colAccent}}
 	if ip := firstIPv4(); ip != "" {
-		parts = append(parts, t("Netzwerk: ", "Network: ")+ip)
+		chips = append(chips, chip{t("Netzwerk: ", "Network: ") + ip, colOK})
 	} else {
-		parts = append(parts, t("Netzwerk: keine Adresse", "Network: no address"))
+		chips = append(chips, chip{t("Netzwerk: keine Adresse", "Network: no address"), colWarn})
 	}
-	if disks, err := imaging.ListDisks(); err == nil {
-		parts = append(parts, tf("%d Datenträger", "%d disks", len(disks)))
-	} else {
-		parts = append(parts, t("Datenträger: ", "Disks: ")+err.Error())
+	switch disks, err := imaging.ListDisks(); {
+	case err != nil:
+		chips = append(chips, chip{t("Datenträger: ", "Disks: ") + err.Error(), colDanger})
+	case len(disks) == 0:
+		chips = append(chips, chip{tf("%d Datenträger", "%d disks", 0), colWarn})
+	default:
+		chips = append(chips, chip{tf("%d Datenträger", "%d disks", len(disks)), colOK})
 	}
-	parts = append(parts, t("Sprache: Deutsch", "Language: English"))
-	a.status.SetText(strings.Join(parts, "   ·   "))
+	return append(chips, chip{t("Sprache: Deutsch", "Language: English"), colMuted})
 }
 
 func firstIPv4() string {
