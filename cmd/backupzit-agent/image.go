@@ -221,7 +221,7 @@ func cmdImageRestore(ctx context.Context, args []string) error {
 			return err
 		}
 		needed, _ := imaging.NeededDiskSize(img, limits, lo)
-		printImageLayout(img, limits, l, size, needed)
+		printImageLayout(os.Stdout, img, limits, l, size, needed)
 		job.Layout, job.Partitions = l, nil
 	}
 	job.Protect = append([]string{rf.location}, recovery.BootMediumPaths()...)

@@ -39,7 +39,7 @@ type PartitionLimits struct {
 	Why    LimitReason `json:"why,omitempty"`
 }
 
-// LimitReason says why a partition cannot be resized.
+// LimitReason says why a partition cannot be resized, or cannot shrink.
 type LimitReason string
 
 const (
@@ -49,6 +49,12 @@ const (
 	ReasonFileSystem  LimitReason = "file-system"   // not NTFS
 	ReasonNotNTFS     LimitReason = "not-ntfs"      // says NTFS but does not read as NTFS
 	ReasonError       LimitReason = "error"         // reading failed; Reason has the error
+
+	// A partition that can grow but keeps at least its size: Resizable
+	// stays true, Reason says why it cannot shrink.
+	ReasonNotClean     LimitReason = "not-clean"     // not shut down cleanly or marked dirty
+	ReasonInconsistent LimitReason = "inconsistent"  // file records and $Bitmap disagree
+	ReasonNoShrink     LimitReason = "cannot-shrink" // any other refusal; Reason has it
 )
 
 // Min returns the smallest allowed length of p.
@@ -137,10 +143,29 @@ var ErrTargetTooSmall = errors.New("target disk too small")
 type TooSmallError struct {
 	DiskSize uint64
 	Needed   uint64
+	// Reasons say why restored partitions cannot shrink below their size
+	// ("partition 3: cannot be shrunk: ..."), if any.
+	Reasons []string
 }
 
 func (e *TooSmallError) Error() string {
-	return fmt.Sprintf("target disk too small: %d bytes, the partitions need at least %d bytes", e.DiskSize, e.Needed)
+	msg := fmt.Sprintf("target disk too small: %d bytes, the partitions need at least %d bytes", e.DiskSize, e.Needed)
+	if len(e.Reasons) > 0 {
+		msg += "; " + strings.Join(e.Reasons, "; ")
+	}
+	return msg
+}
+
+// shrinkReasons lists why the restored partitions of l that could grow
+// cannot shrink, for the errors about a too small disk.
+func (l *Layout) shrinkReasons(limits map[int]PartitionLimits) []string {
+	var out []string
+	for _, lp := range l.Partitions {
+		if lim := limits[lp.Source]; lp.Restore && lim.Resizable && lim.Reason != "" {
+			out = append(out, fmt.Sprintf("partition %d: %s", lp.Source, lim.Reason))
+		}
+	}
+	return out
 }
 
 func (e *TooSmallError) Unwrap() error { return ErrTargetTooSmall }
@@ -375,7 +400,7 @@ func (l *Layout) fit(img *repo.DiskImage, limits map[int]PartitionLimits) error 
 		if mbrMax := uint64(mbrMaxSectors) * uint64(l.SectorSize); l.Style == StyleMBR && needed > mbrMax {
 			return fmt.Errorf("the partitions need %d bytes, more than an MBR disk can address (%d bytes); use GPT", needed, mbrMax)
 		}
-		return &TooSmallError{DiskSize: l.DiskSize, Needed: needed}
+		return &TooSmallError{DiskSize: l.DiskSize, Needed: needed, Reasons: l.shrinkReasons(limits)}
 	}
 
 	// Distribute: proportional to the original length, clamped to the
@@ -504,7 +529,11 @@ func (l *Layout) Validate(img *repo.DiskImage, limits map[int]PartitionLimits) e
 			}
 			return fmt.Errorf("partition %d cannot be resized: %s", lp.Source, why)
 		case lp.Length < lim.Min(src):
-			return fmt.Errorf("partition %d needs at least %d bytes, the layout gives it %d", lp.Source, lim.Min(src), lp.Length)
+			msg := fmt.Sprintf("partition %d needs at least %d bytes, the layout gives it %d", lp.Source, lim.Min(src), lp.Length)
+			if lim.Reason != "" {
+				msg += ": " + lim.Reason
+			}
+			return errors.New(msg)
 		}
 	}
 	if last > end {
@@ -516,7 +545,7 @@ func (l *Layout) Validate(img *repo.DiskImage, limits map[int]PartitionLimits) e
 		if l.Style == StyleMBR && last > uint64(mbrMaxSectors)*sector {
 			return fmt.Errorf("an MBR disk can only address %d bytes; use GPT", uint64(mbrMaxSectors)*sector)
 		}
-		return &TooSmallError{DiskSize: l.DiskSize, Needed: needed}
+		return &TooSmallError{DiskSize: l.DiskSize, Needed: needed, Reasons: l.shrinkReasons(limits)}
 	}
 	return nil
 }

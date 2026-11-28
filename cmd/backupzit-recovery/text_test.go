@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/max-zit/backupzit/internal/imaging"
+	"github.com/max-zit/backupzit/internal/repo"
 )
 
 // withLang switches the texts to language l for the rest of the test.
@@ -477,4 +478,29 @@ func stringValue(e ast.Expr) (string, bool) {
 		return stringValue(e.X)
 	}
 	return "", false
+}
+
+// Page 4 tells why a partition that can grow cannot shrink, in the
+// user's language, and what helps.
+func TestSizeInfoSaysWhyAPartitionCannotShrink(t *testing.T) {
+	src := &repo.PartitionImage{Number: 3, Length: 42658168832}
+	notClean := imaging.PartitionLimits{Resizable: true, MinSize: src.Length, UsedBytes: 13 << 30,
+		Reason: "cannot be shrunk: the file system in the backup was not shut down cleanly: Windows kept file system metadata in memory", Why: imaging.ReasonNotClean}
+	withLang(t, "de")
+	if got := sizeInfo(notClean, src); !strings.Contains(got, "mindestens 39,7 GiB") || !strings.Contains(got, "nicht sauber heruntergefahren") {
+		t.Errorf("de: %q", got)
+	}
+	withLang(t, "en")
+	if got := sizeInfo(notClean, src); !strings.Contains(got, "not shut down cleanly") || !strings.Contains(got, "back it up again") {
+		t.Errorf("en: %q", got)
+	}
+	// Another refusal has no short text: its own is shown.
+	other := imaging.PartitionLimits{Resizable: true, Reason: "cannot be shrunk: the file system cannot be shrunk: NTFS version 3.2", Why: imaging.ReasonNoShrink}
+	if got := sizeInfo(other, src); !strings.Contains(got, "NTFS version 3.2") {
+		t.Errorf("other: %q", got)
+	}
+	// A partition that can shrink shows only the sizes.
+	if got := sizeInfo(imaging.PartitionLimits{Resizable: true, MinSize: 20 << 30, UsedBytes: 13 << 30}, src); strings.Contains(got, ";") {
+		t.Errorf("shrinkable: %q", got)
+	}
 }

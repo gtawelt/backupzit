@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -154,35 +155,46 @@ func cmdImageLayout(ctx context.Context, args []string) error {
 		}
 		return enc.Encode(out)
 	}
-	printImageLayout(img, limits, l, size, needed)
+	printImageLayout(os.Stdout, img, limits, l, size, needed)
 	return err
 }
 
-func printImageLayout(img *repo.DiskImage, limits map[int]imaging.PartitionLimits, l *imaging.Layout, size, needed uint64) {
-	fmt.Printf("Image: disk %d, %s, %s\n", img.Number, humanBytes(img.Size), strings.ToUpper(img.Style))
-	fmt.Printf("Target: %s (smallest possible: %s)\n\n", humanBytes(size), humanBytes(needed))
-	fmt.Println("  #  original    minimum     used        shrinkable  resizable")
+func printImageLayout(w io.Writer, img *repo.DiskImage, limits map[int]imaging.PartitionLimits, l *imaging.Layout, size, needed uint64) {
+	fmt.Fprintf(w, "Image: disk %d, %s, %s\n", img.Number, humanBytes(img.Size), strings.ToUpper(img.Style))
+	fmt.Fprintf(w, "Target: %s (smallest possible: %s)\n\n", humanBytes(size), humanBytes(needed))
+	fmt.Fprintln(w, "  #  original    minimum     used        shrinkable  resizable")
+	var notes []string
 	for _, p := range img.Partitions {
 		lim := limits[p.Number]
 		res := "yes"
-		if !lim.Resizable {
+		switch {
+		case !lim.Resizable:
 			res = "no: " + lim.Reason
+		case lim.Reason != "":
+			// It can grow, but not shrink: say why under the table.
+			notes = append(notes, fmt.Sprintf("  %d: %s", p.Number, lim.Reason))
 		}
 		shrink := "-"
 		if lim.ShrinkableTo > 0 {
 			shrink = humanBytes(lim.ShrinkableTo)
 		}
-		fmt.Printf("  %d  %-10s  %-10s  %-10s  %-10s  %s\n", p.Number, humanBytes(p.Length), humanBytes(lim.Min(&p)), humanBytes(lim.UsedBytes), shrink, res)
+		fmt.Fprintf(w, "  %d  %-10s  %-10s  %-10s  %-10s  %s\n", p.Number, humanBytes(p.Length), humanBytes(lim.Min(&p)), humanBytes(lim.UsedBytes), shrink, res)
+	}
+	if len(notes) > 0 {
+		fmt.Fprintln(w, "\nNot smaller than the minimum because:")
+		for _, n := range notes {
+			fmt.Fprintln(w, n)
+		}
 	}
 	if l == nil {
 		return
 	}
-	fmt.Println("\nTarget layout:")
+	fmt.Fprintln(w, "\nTarget layout:")
 	for _, lp := range l.Partitions {
 		what := "restore"
 		if !lp.Restore {
 			what = "create empty"
 		}
-		fmt.Printf("  %d  at %-14d %-10s  %s\n", lp.Source, lp.Offset, humanBytes(lp.Length), what)
+		fmt.Fprintf(w, "  %d  at %-14d %-10s  %s\n", lp.Source, lp.Offset, humanBytes(lp.Length), what)
 	}
 }

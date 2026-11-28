@@ -854,7 +854,7 @@ func (w *wizard) buildRows() {
 			case !lim.Resizable:
 				info = t("nur verschiebbar: ", "can only be moved: ") + reasonText(lim, imaging.Partition{GPTType: src.GPTType, MBRType: src.MBRType}.Kind())
 			default:
-				info = tf("belegt %s, mindestens %s", "used %s, at least %s", humanBytes(lim.UsedBytes), humanBytes(lim.Min(src)))
+				info = sizeInfo(lim, src)
 			}
 		}
 		var cb *walk.CheckBox

@@ -2,6 +2,7 @@ package imaging
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/max-zit/backupzit/internal/repo"
@@ -266,5 +267,36 @@ func TestNeededDiskSizeFirstPartitionBelowOneMiB(t *testing.T) {
 	}
 	if _, err := SuggestLayout(img, needed, limits, LayoutOptions{Mode: LayoutFit}); err != nil {
 		t.Errorf("a disk of the needed size %d does not fit: %v", needed, err)
+	}
+}
+
+// A partition that cannot shrink below its size names the reason in the
+// errors about a too small partition or disk, so the user learns what
+// helps (shut the source down cleanly and back it up again).
+func TestLayoutErrorsNameWhyAPartitionCannotShrink(t *testing.T) {
+	img := windowsGPT()
+	const why = "cannot be shrunk: the file system in the backup was not shut down cleanly"
+	lim := map[int]PartitionLimits{3: {Resizable: true, MinSize: img.Partitions[2].Length, Reason: why, Why: ReasonNotClean}}
+
+	_, err := SuggestLayout(img, 40*gib, lim, LayoutOptions{})
+	if !errors.Is(err, ErrTargetTooSmall) || !strings.Contains(err.Error(), "partition 3: "+why) {
+		t.Errorf("too small disk: %v", err)
+	}
+
+	l, err := SuggestLayout(img, 80*gib, lim, LayoutOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Resize(3, 30*gib); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Validate(img, lim); err == nil || !strings.Contains(err.Error(), "needs at least") || !strings.Contains(err.Error(), why) {
+		t.Errorf("partition below its minimum: %v", err)
+	}
+
+	// Without a reason the messages stay as they were.
+	plain := windowsLimits(img.Partitions[2].Length)
+	if _, err := SuggestLayout(img, 40*gib, plain, LayoutOptions{}); err == nil || strings.Contains(err.Error(), "partition 3:") {
+		t.Errorf("no reason: %v", err)
 	}
 }

@@ -191,7 +191,7 @@ func shrinkLimits(pr io.ReaderAt, p *repo.PartitionImage, u *NTFSUsage) Partitio
 	vol, err := ntfsresize.Open(pr)
 	if err != nil {
 		lim.MinSize, lim.ShrinkableTo = p.Length, p.Length
-		lim.Reason = "cannot be shrunk: " + err.Error()
+		lim.Reason, lim.Why = "cannot be shrunk: "+err.Error(), shrinkRefusal(err)
 		return lim
 	}
 	m, err := vol.MinimumSize(ShrinkOptions(p))
@@ -200,13 +200,24 @@ func shrinkLimits(pr io.ReaderAt, p *repo.PartitionImage, u *NTFSUsage) Partitio
 		// is, which needs none of the checks.
 		keep := min(p.Length, alignUp(vol.UnchangedSize(), LayoutAlign))
 		lim.MinSize, lim.ShrinkableTo = keep, keep
-		lim.Reason = "cannot be shrunk: " + err.Error()
+		lim.Reason, lim.Why = "cannot be shrunk: "+err.Error(), shrinkRefusal(err)
 		return lim
 	}
 	// Every size from the minimum up is accepted, so aligning up keeps it.
 	lim.MinSize = min(alignUp(m, LayoutAlign), p.Length)
 	lim.ShrinkableTo = max(lim.MinSize, min(lim.ShrinkableTo, p.Length))
 	return lim
+}
+
+// shrinkRefusal is the code for an error ntfsresize refuses a shrink with.
+func shrinkRefusal(err error) LimitReason {
+	switch {
+	case errors.Is(err, ntfsresize.ErrNotClean):
+		return ReasonNotClean
+	case errors.Is(err, ntfsresize.ErrInconsistent):
+		return ReasonInconsistent
+	}
+	return ReasonNoShrink
 }
 
 // BitLockerRawReason explains why a partition backed up encrypted cannot

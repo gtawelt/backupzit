@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/max-zit/backupzit/internal/imaging"
+	"github.com/max-zit/backupzit/internal/repo"
 )
 
 // languages are the languages of the program: the 14 of the console
@@ -124,8 +125,26 @@ func reasonText(lim imaging.PartitionLimits, kind string) string {
 		return t("verschlüsselt (BitLocker) oder nicht als NTFS lesbar", "encrypted (BitLocker) or not readable as NTFS")
 	case imaging.ReasonError:
 		return t("nicht lesbar: ", "not readable: ") + lim.Reason
+	case imaging.ReasonNotClean:
+		return t("nicht verkleinerbar: Windows war beim Backup nicht sauber heruntergefahren (ganz herunterfahren und neu sichern)",
+			"cannot shrink: Windows was not shut down cleanly when backed up (shut it down fully and back it up again)")
+	case imaging.ReasonInconsistent:
+		return t("nicht verkleinerbar: Dateisystem im Backup inkonsistent (chkdsk /f ausführen und neu sichern)",
+			"cannot shrink: the file system in the backup is inconsistent (run chkdsk /f and back it up again)")
+	case imaging.ReasonNoShrink:
+		return t("nicht verkleinerbar: ", "cannot shrink: ") + strings.TrimPrefix(lim.Reason, "cannot be shrunk: ")
 	}
 	return lim.Reason
+}
+
+// sizeInfo describes the sizes of a resizable partition src on the
+// layout page and, when it cannot shrink below its size, why.
+func sizeInfo(lim imaging.PartitionLimits, src *repo.PartitionImage) string {
+	s := tf("belegt %s, mindestens %s", "used %s, at least %s", humanBytes(lim.UsedBytes), humanBytes(lim.Min(src)))
+	if lim.Reason != "" {
+		s += "; " + reasonText(lim, "")
+	}
+	return s
 }
 
 // span is a partition on disk in bytes.
@@ -471,6 +490,10 @@ var translations = map[string]map[string]string{
 		"Log":                                    "Protokol",
 		"Current state (ipconfig)":               "Aktuální stav (ipconfig)",
 		"Set the address of the network adapter": "Nastavit adresu síťového adaptéru",
+
+		"cannot shrink: ": "nelze zmenšit: ",
+		"cannot shrink: Windows was not shut down cleanly when backed up (shut it down fully and back it up again)": "nelze zmenšit: Windows nebyly při zálohování řádně vypnuty (úplně je vypněte a zálohujte znovu)",
+		"cannot shrink: the file system in the backup is inconsistent (run chkdsk /f and back it up again)":         "nelze zmenšit: systém souborů v záloze je nekonzistentní (spusťte chkdsk /f a zálohujte znovu)",
 	},
 	"es": { // #nosec G101 -- interface texts; "password" and "key" in them are field labels
 		"Choose what you want to do.": "Elija lo que desea hacer.",
@@ -675,6 +698,10 @@ var translations = map[string]map[string]string{
 		"Log":                                    "Registro",
 		"Current state (ipconfig)":               "Estado actual (ipconfig)",
 		"Set the address of the network adapter": "Configurar la dirección del adaptador de red",
+
+		"cannot shrink: ": "no se puede reducir: ",
+		"cannot shrink: Windows was not shut down cleanly when backed up (shut it down fully and back it up again)": "no se puede reducir: Windows no se apagó correctamente al hacer la copia (apáguelo por completo y vuelva a hacer la copia)",
+		"cannot shrink: the file system in the backup is inconsistent (run chkdsk /f and back it up again)":         "no se puede reducir: el sistema de archivos de la copia es incoherente (ejecute chkdsk /f y vuelva a hacer la copia)",
 	},
 	"fr": { // #nosec G101 -- interface texts; "password" and "key" in them are field labels
 		"Choose what you want to do.": "Choisissez ce que vous voulez faire.",
@@ -879,6 +906,10 @@ var translations = map[string]map[string]string{
 		"Log":                                    "Journal",
 		"Current state (ipconfig)":               "État actuel (ipconfig)",
 		"Set the address of the network adapter": "Définir l’adresse de la carte réseau",
+
+		"cannot shrink: ": "réduction impossible : ",
+		"cannot shrink: Windows was not shut down cleanly when backed up (shut it down fully and back it up again)": "réduction impossible : Windows n'a pas été arrêté proprement lors de la sauvegarde (arrêtez-le complètement et sauvegardez à nouveau)",
+		"cannot shrink: the file system in the backup is inconsistent (run chkdsk /f and back it up again)":         "réduction impossible : le système de fichiers de la sauvegarde est incohérent (lancez chkdsk /f et sauvegardez à nouveau)",
 	},
 	"it": { // #nosec G101 -- interface texts; "password" and "key" in them are field labels
 		"Choose what you want to do.": "Scegli cosa vuoi fare.",
@@ -1083,6 +1114,10 @@ var translations = map[string]map[string]string{
 		"Log":                                    "Registro",
 		"Current state (ipconfig)":               "Stato attuale (ipconfig)",
 		"Set the address of the network adapter": "Imposta l'indirizzo della scheda di rete",
+
+		"cannot shrink: ": "non riducibile: ",
+		"cannot shrink: Windows was not shut down cleanly when backed up (shut it down fully and back it up again)": "non riducibile: Windows non era stato arrestato correttamente durante il backup (arrestarlo completamente e rifare il backup)",
+		"cannot shrink: the file system in the backup is inconsistent (run chkdsk /f and back it up again)":         "non riducibile: il file system nel backup è incoerente (eseguire chkdsk /f e rifare il backup)",
 	},
 	"ja": { // #nosec G101 -- interface texts; "password" and "key" in them are field labels
 		"Choose what you want to do.": "実行する操作を選択してください。",
@@ -1287,6 +1322,10 @@ var translations = map[string]map[string]string{
 		"Log":                                    "ログ",
 		"Current state (ipconfig)":               "現在の状態 (ipconfig)",
 		"Set the address of the network adapter": "ネットワークアダプターのアドレスを設定",
+
+		"cannot shrink: ": "縮小できません: ",
+		"cannot shrink: Windows was not shut down cleanly when backed up (shut it down fully and back it up again)": "縮小できません: バックアップ時に Windows が正常にシャットダウンされていませんでした（完全にシャットダウンしてからバックアップし直してください）",
+		"cannot shrink: the file system in the backup is inconsistent (run chkdsk /f and back it up again)":         "縮小できません: バックアップ内のファイル システムに不整合があります（chkdsk /f を実行してからバックアップし直してください）",
 	},
 	"nl": { // #nosec G101 -- interface texts; "password" and "key" in them are field labels
 		"Choose what you want to do.": "Kies wat u wilt doen.",
@@ -1491,6 +1530,10 @@ var translations = map[string]map[string]string{
 		"Log":                                    "Logboek",
 		"Current state (ipconfig)":               "Huidige status (ipconfig)",
 		"Set the address of the network adapter": "Het adres van de netwerkadapter instellen",
+
+		"cannot shrink: ": "kan niet verkleinen: ",
+		"cannot shrink: Windows was not shut down cleanly when backed up (shut it down fully and back it up again)": "kan niet verkleinen: Windows was bij de back-up niet netjes afgesloten (volledig afsluiten en opnieuw back-uppen)",
+		"cannot shrink: the file system in the backup is inconsistent (run chkdsk /f and back it up again)":         "kan niet verkleinen: het bestandssysteem in de back-up is inconsistent (chkdsk /f uitvoeren en opnieuw back-uppen)",
 	},
 	"pl": { // #nosec G101 -- interface texts; "password" and "key" in them are field labels
 		"Choose what you want to do.": "Wybierz, co chcesz zrobić.",
@@ -1695,6 +1738,10 @@ var translations = map[string]map[string]string{
 		"Log":                                    "Dziennik",
 		"Current state (ipconfig)":               "Bieżący stan (ipconfig)",
 		"Set the address of the network adapter": "Ustaw adres karty sieciowej",
+
+		"cannot shrink: ": "nie można zmniejszyć: ",
+		"cannot shrink: Windows was not shut down cleanly when backed up (shut it down fully and back it up again)": "nie można zmniejszyć: Windows nie został poprawnie zamknięty podczas kopii (zamknij go całkowicie i wykonaj kopię ponownie)",
+		"cannot shrink: the file system in the backup is inconsistent (run chkdsk /f and back it up again)":         "nie można zmniejszyć: system plików w kopii jest niespójny (uruchom chkdsk /f i wykonaj kopię ponownie)",
 	},
 	"pt": { // #nosec G101 -- interface texts; "password" and "key" in them are field labels
 		"Choose what you want to do.": "Escolha o que deseja fazer.",
@@ -1899,6 +1946,10 @@ var translations = map[string]map[string]string{
 		"Log":                                    "Registro",
 		"Current state (ipconfig)":               "Estado atual (ipconfig)",
 		"Set the address of the network adapter": "Definir o endereço do adaptador de rede",
+
+		"cannot shrink: ": "não pode ser reduzida: ",
+		"cannot shrink: Windows was not shut down cleanly when backed up (shut it down fully and back it up again)": "não pode ser reduzida: o Windows não foi desligado corretamente no backup (desligue-o por completo e faça o backup novamente)",
+		"cannot shrink: the file system in the backup is inconsistent (run chkdsk /f and back it up again)":         "não pode ser reduzida: o sistema de arquivos do backup está inconsistente (execute chkdsk /f e faça o backup novamente)",
 	},
 	"ru": { // #nosec G101 -- interface texts; "password" and "key" in them are field labels
 		"Choose what you want to do.": "Выберите действие.",
@@ -2103,6 +2154,10 @@ var translations = map[string]map[string]string{
 		"Log":                                    "Журнал",
 		"Current state (ipconfig)":               "Текущее состояние (ipconfig)",
 		"Set the address of the network adapter": "Настроить адрес сетевого адаптера",
+
+		"cannot shrink: ": "нельзя уменьшить: ",
+		"cannot shrink: Windows was not shut down cleanly when backed up (shut it down fully and back it up again)": "нельзя уменьшить: Windows не была корректно завершена при резервном копировании (полностью выключите её и создайте копию заново)",
+		"cannot shrink: the file system in the backup is inconsistent (run chkdsk /f and back it up again)":         "нельзя уменьшить: файловая система в копии несогласована (выполните chkdsk /f и создайте копию заново)",
 	},
 	"sr": { // #nosec G101 -- interface texts; "password" and "key" in them are field labels
 		"Choose what you want to do.": "Izaberite šta želite da uradite.",
@@ -2307,6 +2362,10 @@ var translations = map[string]map[string]string{
 		"Log":                                    "Log",
 		"Current state (ipconfig)":               "Trenutno stanje (ipconfig)",
 		"Set the address of the network adapter": "Podesite adresu mrežnog adaptera",
+
+		"cannot shrink: ": "ne može da se smanji: ",
+		"cannot shrink: Windows was not shut down cleanly when backed up (shut it down fully and back it up again)": "ne može da se smanji: Windows nije bio ispravno isključen pri pravljenju rezervne kopije (potpuno ga isključite i ponovo napravite kopiju)",
+		"cannot shrink: the file system in the backup is inconsistent (run chkdsk /f and back it up again)":         "ne može da se smanji: sistem datoteka u rezervnoj kopiji nije konzistentan (pokrenite chkdsk /f i ponovo napravite kopiju)",
 	},
 	"tr": { // #nosec G101 -- interface texts; "password" and "key" in them are field labels
 		"Choose what you want to do.": "Ne yapmak istediğinizi seçin.",
@@ -2511,6 +2570,10 @@ var translations = map[string]map[string]string{
 		"Log":                                    "Günlük",
 		"Current state (ipconfig)":               "Geçerli durum (ipconfig)",
 		"Set the address of the network adapter": "Ağ bağdaştırıcısının adresini ayarla",
+
+		"cannot shrink: ": "küçültülemez: ",
+		"cannot shrink: Windows was not shut down cleanly when backed up (shut it down fully and back it up again)": "küçültülemez: Windows yedekleme sırasında düzgün kapatılmamıştı (tamamen kapatıp yeniden yedekleyin)",
+		"cannot shrink: the file system in the backup is inconsistent (run chkdsk /f and back it up again)":         "küçültülemez: yedekteki dosya sistemi tutarsız (chkdsk /f çalıştırıp yeniden yedekleyin)",
 	},
 	"zh": { // #nosec G101 -- interface texts; "password" and "key" in them are field labels
 		"Choose what you want to do.": "请选择要执行的操作。",
@@ -2715,5 +2778,9 @@ var translations = map[string]map[string]string{
 		"Log":                                    "日志",
 		"Current state (ipconfig)":               "当前状态 (ipconfig)",
 		"Set the address of the network adapter": "设置网络适配器的地址",
+
+		"cannot shrink: ": "无法缩小: ",
+		"cannot shrink: Windows was not shut down cleanly when backed up (shut it down fully and back it up again)": "无法缩小: 备份时 Windows 未正常关机（请完全关机后重新备份）",
+		"cannot shrink: the file system in the backup is inconsistent (run chkdsk /f and back it up again)":         "无法缩小: 备份中的文件系统不一致（请运行 chkdsk /f 后重新备份）",
 	},
 }

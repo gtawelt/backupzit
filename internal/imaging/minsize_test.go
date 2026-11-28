@@ -1,6 +1,7 @@
 package imaging
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -200,5 +201,58 @@ func TestShrinkLimitsArePromises(t *testing.T) {
 	}
 	if mins[0] >= mins[1] {
 		t.Errorf("moving data (vss) gives no smaller minimum: %d, without moving %d", mins[0], mins[1])
+	}
+}
+
+// markDirty sets the dirty flag in $Volume of the NTFS image img, as
+// Windows does when a volume needs checking.
+func markDirty(t *testing.T, img []byte) {
+	t.Helper()
+	sector := uint64(binary.LittleEndian.Uint16(img[0x0B:]))
+	cluster := sector * uint64(img[0x0D])
+	rs := uint64(cluster) * uint64(img[0x40])
+	if v := int8(img[0x40]); v < 0 {
+		rs = 1 << uint(-v)
+	}
+	rec := img[binary.LittleEndian.Uint64(img[0x30:])*cluster+3*rs:][:rs]
+	for off := uint64(binary.LittleEndian.Uint16(rec[0x14:])); off+8 <= rs; {
+		typ, n := binary.LittleEndian.Uint32(rec[off:]), uint64(binary.LittleEndian.Uint32(rec[off+4:]))
+		if typ == 0xFFFFFFFF || n == 0 {
+			break
+		}
+		if typ == 0x70 { // $VOLUME_INFORMATION, resident
+			flags := off + uint64(binary.LittleEndian.Uint16(rec[off+0x14:])) + 0x0A
+			if flags%sector >= sector-2 {
+				t.Skip("volume flags sit on a fixup position")
+			}
+			binary.LittleEndian.PutUint16(rec[flags:], binary.LittleEndian.Uint16(rec[flags:])|0x0001)
+			return
+		}
+		off += n
+	}
+	t.Fatal("no $VOLUME_INFORMATION in $Volume")
+}
+
+// A partition that can grow but not shrink says why, with a code programs
+// can translate.
+func TestShrinkLimitsSayWhyTheyCannotShrink(t *testing.T) {
+	img, err := os.ReadFile(goNTFSTestImage(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	markDirty(t, img)
+	r := bytes.NewReader(img)
+	u, err := MeasureNTFS(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	length := u.Geometry.TotalSectors*uint64(u.Geometry.BytesPerSector) + uint64(u.Geometry.BytesPerSector)
+	p := &repo.PartitionImage{Number: 1, Length: length, Included: true, FileSystem: "NTFS", Source: "live"}
+	lim := shrinkLimits(r, p, u)
+	if !lim.Resizable || lim.Min(p) < alignDown(length, LayoutAlign) {
+		t.Errorf("a dirty volume must keep its size but may grow: %+v", lim)
+	}
+	if lim.Why != ReasonNotClean || !strings.Contains(lim.Reason, "chkdsk /f") {
+		t.Errorf("got why %q, reason %q; want %q with the chkdsk hint", lim.Why, lim.Reason, ReasonNotClean)
 	}
 }
